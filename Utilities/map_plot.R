@@ -37,13 +37,13 @@
       }
       if (length(year) == 1){
         tr<-filedata[,c(YearNames)]
-        yr <- paste("Surface abrasion \n" ,year[1])
+        yr <- paste("Fishing intensity \n" ,year[1])
       } else {
         tr<-filedata[,c(YearNames)]
         tr[is.na(tr)]<-0
         tr<-rowMeans(tr[,c(YearNames)])  
         tr[tr==0]<-NA
-        yr <- paste("Surface abrasion \n" ,year[1],"-",year[length(year)])
+        yr <- paste("Fishing intensity \n" ,year[1],"-",year[length(year)])
       }
      
       quat<-c(-1,0,0.1,0.5,1,5,10,100)
@@ -68,7 +68,7 @@
                           axis.text.x   = element_text(size=16),
                           axis.title.y  = element_text(size=16),
                           axis.title.x  = element_text(size=16),
-                          panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                          panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                           legend.text   = element_text(size=11),
                           legend.title  = element_text(size=11))+
                           scale_x_continuous(breaks=coordxmap)+
@@ -117,7 +117,7 @@
                                 axis.text.x   = element_text(size=16),
                                 axis.title.y  = element_text(size=16),
                                 axis.title.x  = element_text(size=16),
-                                panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                                 legend.text   = element_text(size=11),
                                 legend.title  = element_text(size=11))+
         scale_x_continuous(breaks=coordxmap)+
@@ -166,7 +166,7 @@
                                 axis.text.x   = element_text(size=16),
                                 axis.title.y  = element_text(size=16),
                                 axis.title.x  = element_text(size=16),
-                                panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                                 legend.text   = element_text(size=11),
                                 legend.title  = element_text(size=11))+
         scale_x_continuous(breaks=coordxmap)+
@@ -202,7 +202,7 @@
                                 axis.text.x   = element_text(size=16),
                                 axis.title.y  = element_text(size=16),
                                 axis.title.x  = element_text(size=16),
-                                panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                                 legend.text   = element_text(size=11),
                                 legend.title  = element_text(size=11))+
         scale_x_continuous(breaks=coordxmap)+
@@ -251,7 +251,7 @@
                                 axis.text.x   = element_text(size=16),
                                 axis.title.y  = element_text(size=16),
                                 axis.title.x  = element_text(size=16),
-                                panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                                 legend.text   = element_text(size=11),
                                 legend.title  = element_text(size=11))+
         scale_x_continuous(breaks=coordxmap)+
@@ -260,6 +260,53 @@
       figmap<- figmap +   guides(colour = guide_legend(override.aes = list(size=5))) 
       return(figmap)  
     
+    } else if (var == "total_gva"){  
+      
+      YearNames<-c()
+      for (i in 1:length(year)){
+        YearNames <- c(YearNames,paste(var,year[i],sep="_"))
+      }
+      if (length(year) == 1){
+        tr<-filedata[,c(YearNames)]
+        yr <- paste("GVA (euros) \n" ,year[1])
+      } else {
+        tr<-filedata[,c(YearNames)]
+        tr[is.na(tr)]<-0
+        tr<-rowMeans(tr[,c(YearNames)])  
+        tr[tr==0]<-NA
+        yr <- paste("GVA (euros) \n" ,year[1],"-",year[length(year)])
+      }
+      
+      quat<-c(-1,0,100,1000,10000,100000,10000000)
+      filedata$cat<- as.factor(cut(tr,quat,right=FALSE))
+      label_all <- c("-1-0","0-100    ", expression(100-10^3),expression(10^3-10^4),expression(10^4-10^5),expression(paste(">",10^5,"     ")))
+      idx <- which(!(table(filedata$cat)==0))
+      label_sub <- label_all[idx]
+      
+      if((length(filedata$cat[is.na(filedata$cat)])>0)){
+        label_sub <- c(label_sub,"NA       ")
+      }
+      
+      colorchoice <- colorchoice[idx-1]
+      
+      figmap <- ggplot() + geom_point(data=filedata, aes(x=longitude, y=latitude, colour=factor(cat)),shape=15,size=pointsize,na.rm=T) +
+        scale_colour_manual(values=colorchoice,na.value = "grey50",name  =yr,
+                            labels=label_sub)
+      figmap <- figmap +  geom_polygon(data = worldMap, aes(x = long, y = lat, group = group),color="dark grey",fill="light grey")
+      figmap <- figmap +  theme(plot.background=element_blank(),
+                                panel.background=element_blank(),
+                                axis.text.y   = element_text(size=16),
+                                axis.text.x   = element_text(size=16),
+                                axis.title.y  = element_text(size=16),
+                                axis.title.x  = element_text(size=16),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
+                                legend.text   = element_text(size=11),
+                                legend.title  = element_text(size=11))+
+        scale_x_continuous(breaks=coordxmap)+
+        scale_y_continuous(breaks=coordymap)+
+        coord_cartesian(xlim=c(coordslim[1], coordslim[2]), ylim=c(coordslim[3],coordslim[4]))
+      figmap<- figmap +   guides(colour = guide_legend(override.aes = list(size=5))) 
+      return(figmap)
       
       } else if (var == "state"){  
         
@@ -300,7 +347,7 @@
                                 axis.text.x   = element_text(size=16),
                                 axis.title.y  = element_text(size=16),
                                 axis.title.x  = element_text(size=16),
-                                panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                                panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                                 legend.text   = element_text(size=11),
                                 legend.title  = element_text(size=11))+
                 scale_x_continuous(breaks=coordxmap)+
@@ -353,7 +400,7 @@
                               axis.text.x   = element_text(size=16),
                               axis.title.y  = element_text(size=16),
                               axis.title.x  = element_text(size=16),
-                              panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                              panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                               legend.text   = element_text(size=11),
                               legend.title  = element_text(size=11))+
       scale_x_continuous(breaks=coordxmap)+
@@ -371,13 +418,13 @@
     }
     if (length(year) == 1){
       tr<-filedata[,c(YearNames)]
-      yr <- paste("Impact (L1 method) \n" ,year[1])
+      yr <- paste("Impact (PD-sens) \n" ,year[1])
     } else {
       tr<-filedata[,c(YearNames)]
       #tr[is.na(tr)]<-0
       tr<-rowMeans(tr[,c(YearNames)])  
       #tr[tr==0] <- NA
-      yr <- paste("Impact (L1 method) \n" ,year[1],"-",year[length(year)])
+      yr <- paste("Impact (PD-sens) \n" ,year[1],"-",year[length(year)])
       
     }
     
@@ -406,7 +453,7 @@
                               axis.text.x   = element_text(size=16),
                               axis.title.y  = element_text(size=16),
                               axis.title.x  = element_text(size=16),
-                              panel.border  = element_rect(colour = "grey", size=.5,fill=NA),
+                              panel.border  = element_rect(colour = "grey", linewidth=.5,fill=NA),
                               legend.text   = element_text(size=11),
                               legend.title  = element_text(size=11))+
       scale_x_continuous(breaks=coordxmap)+

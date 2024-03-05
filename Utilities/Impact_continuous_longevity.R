@@ -4,7 +4,7 @@ RBS <- function(Fd,a,b){        #  a = slope of binomial model, b = intercept of
   
   # 3 equations
   step.size=.5
-  longevity=seq(1,200,by=step.size)
+  longevity=seq(.5,200,by=step.size)
   
   r = 5.31/longevity
   K = (a*exp(a * log(longevity)+b))/(longevity * (exp(a*log(longevity) + b) + 1)^2)     #1st derivative of logistic

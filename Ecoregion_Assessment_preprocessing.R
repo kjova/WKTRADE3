@@ -1,26 +1,53 @@
 rm(list = ls())
 
 ### libraries needed
-library(rgdal)
+#library(rgdal) # rgdal is outdated
 
 ### github folder
-pathdir <- "C:/Users/pdvd/Online for git/WKTRADE3"
+#pathdir <- "C:/Users/danie/Documents/Online for git/WKTRADE3"
+pathdir <- "D:/TRADE4_Karin/WKTRADE3"
 
 ### create folder for restricted data
-pathdir_nogit <- "C:/Users/pdvd/Online for git"
+#pathdir_nogit <- "C:/Users/danie/Documents/Online for git/"
+pathdir_nogit <- "D:/TRADE4_Karin/WKTRADE4 - Fisheries restricted"
 
-# run only first time
+# # run only first time
 # setwd(pathdir_nogit)
-# dir.create(paste("WKTRADE3 - Fisheries restricted"))
-pathdir_nogit <- paste(pathdir_nogit,"WKTRADE3 - Fisheries restricted",sep="/")
+# dir.create(paste("WKTRADE4 - Fisheries restricted"))
+# pathdir_nogit <- paste(pathdir_nogit,"WKTRADE4 - Fisheries restricted",sep="/")
+
+# ------------------------------------------------------------------------------
+# fishing data was obtained via FBIT (ICES VMS 2023 datacall) 
+# for all Atlantic regions
+# data were copied into the restricted folder
+
+# the below files prepare the fishing data for WKTRADE4 per ecoregion
+# and estimate state for all ecoregions
+# ------------------------------------------------------------------------------
+
+load(paste(pathdir_nogit,"Updated_SAR/fisheries_FBIT_VMSdatacall2023.RData",sep="/"))
+Fisheries_Atlantic <- Fisheries
+load(paste(pathdir_nogit,"Updated_SAR/fisheries_metier_FBIT_VMSdatacall2023.RData",sep="/"))
+FisheriesMet_Atlantic <- FisheriesMet
+
+Period <- 2017:2022 # period with fishing data to calculate impact
 
 EcoReg  <- "Baltic Sea"
-Period <- 2009:2018 # period with fishing data to calculate impact
-
-### get fishing data
-library(icesVMS)
-icesVMS::update_token("vandenderen") ## use your sharepoint name
 source(paste(pathdir,"Utilities/Get_fishing_data.R",sep="/")) 
-
-### estimate state for specified ecoregion per metier per year # takes 5 minutes
 source(paste(pathdir,"2 - Data processing/Calculating_habitat_state_across_regions.R",sep="/")) 
+source(paste0(pathdir, "/Utilities/GearModificationScenarios_state_calculations.R"))
+
+EcoReg  <- "Greater North Sea"
+source(paste(pathdir,"Utilities/Get_fishing_data.R",sep="/")) 
+source(paste(pathdir,"2 - Data processing/Calculating_habitat_state_across_regions.R",sep="/")) 
+source(paste0(pathdir, "/Utilities/GearModificationScenarios_state_calculations.R"))
+
+EcoReg  <- "Celtic Seas"
+source(paste(pathdir,"Utilities/Get_fishing_data.R",sep="/")) 
+source(paste(pathdir,"2 - Data processing/Calculating_habitat_state_across_regions.R",sep="/")) 
+source(paste0(pathdir, "/Utilities/GearModificationScenarios_state_calculations.R"))
+
+EcoReg  <- "Bay of Biscay and the Iberian Coast"
+source(paste(pathdir,"Utilities/Get_fishing_data.R",sep="/")) 
+source(paste(pathdir,"2 - Data processing/Calculating_habitat_state_across_regions.R",sep="/")) 
+source(paste0(pathdir, "/Utilities/GearModificationScenarios_state_calculations.R"))

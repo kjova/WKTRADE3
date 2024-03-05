@@ -6,6 +6,7 @@
   state_year <- paste("state",AssPeriod,sep="_")
   weight_year <- paste("total_weight",AssPeriod,sep="_")
   value_year <- paste("total_value",AssPeriod,sep="_")
+  #GVA_year   <- paste("total_gva",GVAPeriod,sep="_")
   
   setwd(pathdir_nogit)  
   dir.create("Producing figures and tables", showWarnings = FALSE)
@@ -15,28 +16,34 @@
   dir.create(paste(Assregion), showWarnings = FALSE)
   setwd(paste(pathdir_nogit,"Producing figures and tables",Assunit,Assregion,sep="/"))  
   
-  # select division from the region
-  if (Assregion != EcoReg){
-   Region <-  subset(Region,Region@data$division == Assregion)
-   }
-  
-  # subset all areas with longevity (north sea has no longevity prediction for Norwegian trench)
-  if (p %in% regions_with_impact){
-    Region <- Region[!(is.na(Region$medlong)),]
-  }
-  
-  # add correct column names for map plots
-  idx <- which(names(Region@data)== "long")
-  colnames(Region@data)[idx]  <- "longitude"
-  idx <- which(names(Region@data)== "lat")
-  colnames(Region@data)[idx]  <- "latitude"
+  ## Select for depths < 800m and >0m
+  Region <- subset(Region, Region@data$depthclass %in% c("3. 400 - 800m", "2. 200 - 400m", "1. 0 - 200m"))
 
+  # Define active metiers in this region (> unique csquares)
+  ActiveMetiers <- data.frame(gears= c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL"),
+                      nrCsquares = NA)
+  
+  for(iGear in unique(ActiveMetiers$gears)){
+    AcMet <- Region@data
+    nam <- paste(rep(paste(iGear,"surface_sar",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+    AcMet <- cbind(AcMet, FisheriesMet[match(AcMet$csquares,FisheriesMet$csquares), c(nam)])
+    AcMet[,c(nam)][is.na(AcMet[,c(nam)])] <- 0
+    AcMet$avgsar <- rowMeans(AcMet[,nam])
+    AcMet <- subset(AcMet, avgsar > 0)
+    ActiveMetiers[ActiveMetiers$gears == iGear,]$nrCsquares <- length(unique(AcMet$csquares))
+  }
+  ActiveMetiers$Activity <- ifelse(ActiveMetiers$nrCsquares > 50, "Active", "not-active")
+
+  
+  
 #####
 # Figure A.1
 ################
   figA1 <- Region@data
   nam <- c(SSAR_year,weight_year,value_year)
   figA1 <- cbind(figA1, Fisheries[match(figA1$csquares,Fisheries$csquares), c(nam)])
+  #figA1 <- cbind(figA1, GVA[match(figA1$csquares,GVA$csquares), c(GVA_year)])
+  #figA1[,GVA_year] <- figA1[,GVA_year]+0.001 # add small value to distinguish from NAs, only for map
   save(figA1, file="FigureA1.RData")
 
 #####
@@ -44,13 +51,13 @@
 ################
   TA1dat_all <- Region@data
   
-  # estimate three depth boundaries
-  mindepth <- c(0, -200, -800)
-  maxdepth <- c(-200, -800, -8000)
+  # estimate four depth boundaries
+  mindepth <- c(0, -200, -400, -800)
+  maxdepth <- c(-200, -400, -800, -8000)
   
-  A1table <- (matrix(data=NA, ncol=3,nrow=9))
+  A1table <- (matrix(data=NA, ncol=4,nrow=9))
   
-  for(iDepth in 1:3){
+  for(iDepth in 1:4){
     TA1dat <-  subset(TA1dat_all,TA1dat_all$Depth < mindepth[iDepth] & TA1dat_all$Depth >= maxdepth[iDepth])
     if(nrow(TA1dat) >0){
       nam <- c(SSAR_year)
@@ -115,14 +122,13 @@
   
   save(A1table, file="TableA1.RData")
 
+#----------------------
+
 #####
 # Table A.2
 ################
   TA2dat <-  Region@data
   
-  # ignore these steps if you only have one mid-point observation per c-square
-    colnames(TA2dat)[which(colnames(TA2dat)=="MSFD")] <- "MSFD_midpoint" 
-
   # account for area of MSFD habitat within csquares and make sure total area is < grid cell size 
   tnew <- aggregate(msfd_csq$area_km2, by=list(msfd_csq$csquares),FUN = sum)
   colnames(tnew) <- c("csquares","areanew")
@@ -133,19 +139,20 @@
   TA2dat$MSFD <- as.character(TA2dat$MSFD)
   TA2dat$MSFD[TA2dat$MSFD=="Na"]= "Unknown"
   TA2dat$grid <- 1
-  #TA2dat$MSFD[TA2dat$MSFD=="<Na>"]= "Unknown"
-  #TA2dat$MSFD[is.na(TA2dat$MSFD)]= "Unknown"
   
   nam <- c(SSAR_year,weight_year,value_year)
   TA2dat <- cbind(TA2dat, Fisheries[match(TA2dat$csquares,Fisheries$csquares), c(nam)])
   TA2dat[,c(nam)][is.na(TA2dat[,c(nam)])] <- 0
-  TA2dat$avgsar <- rowMeans(TA2dat[,SSAR_year]) # get the c-sq average within c-sq per year
-  TA2dat$avgweight <- rowMeans(TA2dat[,weight_year],na.rm=T) * (TA2dat$area_km2 / TA2dat$area_sqkm) # distribute weight equally across MSFD habitats in each c-sq
-  TA2dat$avgvalue <- rowMeans(TA2dat[,value_year],na.rm=T) * (TA2dat$area_km2 / TA2dat$area_sqkm) # distribute value equally across MSFD habitats in each c-sq
-
+  #TA2dat <- cbind(TA2dat, GVA[match(TA2dat$csquares,GVA$csquares), c(GVA_year)])
+  #TA2dat[,c(GVA_year)][is.na(TA2dat[,c(GVA_year)])] <- 0
+  TA2dat$avgsar    <- rowMeans(TA2dat[,SSAR_year]) # get the c-sq average within c-sq per year
+  TA2dat$avgweight <- rowMeans(TA2dat[,weight_year],na.rm=T) * (TA2dat$area_km2 / TA2dat$tot_area) # distribute weight equally across MSFD habitats in each c-sq
+  TA2dat$avgvalue  <- rowMeans(TA2dat[,value_year],na.rm=T) * (TA2dat$area_km2 / TA2dat$tot_area) # distribute value equally across MSFD habitats in each c-sq
+  #TA2dat$avgGVA    <- rowMeans(TA2dat[,GVA_year],na.rm=T) * (TA2dat$area_km2 / TA2dat$tot_area) # distribute value equally across MSFD habitats in each c-sq
+  
   TA2dat$sweptarea <- TA2dat[,"avgsar"]*TA2dat$area_km2
   
-  # estimate proportion of area swept each year
+  # estimate proportion of area swept each year (average annual footprint I-3)
   TA2dat$propswept <- TA2dat$sweptarea
   TA2dat$propswept <- ifelse(TA2dat$sweptarea > TA2dat$area_km2,TA2dat$area_km2,TA2dat$sweptarea)
   
@@ -153,33 +160,54 @@
   TA2dat$propfished <- ifelse(TA2dat[,"avgsar"] > 0,1,0)
   TA2dat$propfished <- TA2dat$propfished * TA2dat$area_km2
   
-  nam <- c("area_km2","grid", "avgweight", "avgvalue","sweptarea","propfished","propswept")
+  nam <- c("area_km2", "grid", "avgweight", "avgvalue", "sweptarea","propfished","propswept")
+  #nam <- c("area_km2", "grid", "avgweight", "avgvalue","avgGVA","sweptarea","propfished","propswept")
   indexcol <- which(names(TA2dat) %in% nam)
   A2table = aggregate( TA2dat[, indexcol], by= list(TA2dat$MSFD), FUN=function(x){sum(x)})
   names(A2table)[1] = 'MSFD'
   
   A2table <- as.data.frame(A2table)
-  A2table <- A2table[order(A2table$sweptarea,decreasing = T),]
+  A2table <- A2table[order(A2table$area_km2,decreasing = T),]
   A2table$MSFD <- as.character(A2table$MSFD)
   
   A2table$avgsar <- A2table$sweptarea/A2table$area_km2
-  A2table$propfished <- A2table$propfished / A2table$area_km2
-  A2table$propswept <- A2table$propswept / A2table$area_km2
+  A2table$propfished <- (A2table$propfished / A2table$area_km2) * 100
+  A2table$propUnfished <- round(100 - A2table$propfished, digits=1) 
+  A2table$propswept <- round(A2table$propswept / A2table$area_km2 *100, digits=0)
   A2table$area_km2 <- A2table$area_km2/1000 
   A2table$sweptarea <- A2table$sweptarea/1000
   A2table$avgweight <- A2table$avgweight/1000000
   A2table$avgvalue <- A2table$avgvalue/1000000
-
-  A2table$eff_fish <- NA
+  #A2table$avgGVA <- A2table$avgGVA/1000000
+  
+  ## Original code
+  A2table$eff_fishOrig <- NA
   llenght <- max(which(A2table$grid>20))
   for (i in 1:llenght){
     hab <- subset(TA2dat,TA2dat$MSFD == A2table[i,1])
-    hab <- hab[order(hab[,"sweptarea"],decreasing = T),]
+    hab <- hab[order(hab[,"area_km2"],decreasing = T),] 
     hab$cumSSAR <- cumsum(hab[,"sweptarea"])
     hab$cumSSAR <- hab$cumSSAR / sum(hab[,"sweptarea"])
-    A2table$eff_fish[i] <- ifelse(is.na(hab$cumSSAR[1]),NA,min(which (hab$cumSSAR > .9))/nrow(hab))
+    A2table$eff_fishOrig[i] <- ifelse(is.na(hab$cumSSAR[1]),NA, min(which (hab$cumSSAR > .9))/nrow(hab))
   }
   
+  ## New code swept area
+  A2table$eff_fishSA <- NA
+  llenght <- max(which(A2table$grid>20))
+  for (i in 1:llenght){
+    hab <- subset(TA2dat,TA2dat$MSFD == A2table[i,1])
+    hab <- hab[order(hab[,"sweptarea"],decreasing = T),] # rank by swept area (fishing effort)
+    hab$cumSSAR <- cumsum(hab[,"sweptarea"])
+    hab$cumSSAR <- hab$cumSSAR / sum(hab[,"sweptarea"])
+    Corefishing <- hab[which (hab$cumSSAR <=.9),]
+    PctAreaCF <- round(sum(Corefishing$area_km2) / sum(hab$area_km2) * 100, digits=1)
+    A2table$eff_fishSA[i] <- ifelse(is.na(hab$cumSSAR[1]),NA, PctAreaCF)
+  }
+  
+  A2table$PctHabExt <- round(A2table$area_km2/sum(A2table$area_km2)*100, digits=1)
+  # A2table$eff_fish <- round(A2table$eff_fish * 100, digits=0)
+  A2table$grid <- NULL
+  A2table$propfished <- NULL
   save(A2table, file="TableA2.RData")
 
 #####
@@ -212,7 +240,7 @@
     A3dat_swept[,idx] <- ifelse(A3dat_swept[,idx] > A3dat_swept$area_sqkm,A3dat_swept$area_sqkm,A3dat_swept[,idx])
     A3middle[j,1]     <- sum(A3dat_swept[,idx],na.rm=T)/sum(A3dat_swept$area_sqkm)
   }
-  
+ 
   # indicator 4 aggregation of fishing pressure per year
   A3dat_swept <- A3dat
   A3dat_swept[,indexcol] <- A3dat_swept[,indexcol] * A3dat_swept$area_sqkm
@@ -228,7 +256,6 @@
   
    # now estimate again for most extensive MSFD habitats that are fished
   A3msfd <- A3dat
-  colnames(A3msfd)[which(colnames(A3msfd)=="MSFD")] <- "MSFD_midpoint" 
   
   # account for area of MSDS habitat within csquares and make sure total area is < grid cell size 
   tnew <- aggregate(msfd_csq$area_km2, by=list(msfd_csq$csquares),FUN = sum)
@@ -270,7 +297,9 @@
       if(sum(hab_swept[,idx] > 0)){
       hab_swept$cumSSAR <- cumsum(hab_swept[,idx])
       hab_swept$cumSSAR <- hab_swept$cumSSAR / sum(hab_swept[,idx])
-      A3right[j,(imsfd+1)] <- min(which (hab_swept$cumSSAR > .9))/nrow(hab_swept)
+      Corefishing <- hab_swept[which(hab_swept$cumSSAR <= 0.9),]
+      PctAreaCF <- sum(Corefishing$area_km2) / sum(hab_swept$area_km2)
+      A3right[j,(imsfd+1)] <- PctAreaCF
       } else {A3right[j,(imsfd+1)] <- NA} 
     }
   }
@@ -290,13 +319,19 @@
   nam <- c(SSAR_year,weight_year,value_year)
   A4dat <- cbind(A4dat, Fisheries[match(A4dat$csquares,Fisheries$csquares), c(nam)])
   A4dat[ ,c(nam)][is.na(A4dat[ ,c(nam)]) ] = 0 
-  A4dat$avgsar <- rowMeans(A4dat[,SSAR_year]) 
+  #A4dat <- cbind(A4dat, GVA[match(A4dat$csquares,GVA$csquares), c(GVA_year)])
+  #A4dat[,c(GVA_year)][is.na(A4dat[,c(GVA_year)])] <- 0
+  
+  A4dat$avgsar    <- rowMeans(A4dat[,SSAR_year]) 
   A4dat$avgweight <- rowMeans(A4dat[,weight_year],na.rm=T)
-  A4dat$avgvalue <- rowMeans(A4dat[,value_year],na.rm=T) 
+  A4dat$avgvalue  <- rowMeans(A4dat[,value_year],na.rm=T)
+  #A4dat$avgGVA    <- rowMeans(A4dat[,GVA_year],na.rm=T) 
+  
   A4dat<-A4dat[order(-A4dat[,"avgsar"]),]
   A4dat$sweptcumu <-cumsum(A4dat[,"avgsar"])/sum(A4dat[,"avgsar"])
   A4dat$landcumu  <-cumsum(A4dat[,"avgweight"])/sum(A4dat[,"avgweight"])
   A4dat$valuecumu <-cumsum(A4dat[,"avgvalue"])/sum(A4dat[,"avgvalue"])
+  #A4dat$GVAcumu   <-cumsum(A4dat[,"avgGVA"])/sum(A4dat[,"avgGVA"])
   A4dat$indixcumu <-(1:nrow(A4dat))/nrow(A4dat)
 
   save(A4dat, file="FigureA4.RData")
@@ -304,44 +339,56 @@
 #####
 # Table A.3
 ################
-  datT3 <-Region@data
+  datT3 <- Region@data
   
-  gears <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
-  
-  A3table <- as.data.frame(matrix(data=NA, ncol=length(gears), nrow = 5))
-  
-  for (pp in 1:length(gears)){
-    datgear <- datT3
+  gears2 <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
+  gears <- gears2[which(gears2 %in% subset(ActiveMetiers, Activity == "Active")$gears)]
+  if(length(gears)>0){
+    A3table <- as.data.frame(matrix(data=NA, ncol=length(gears), nrow = 5))
     
-    nam <- paste(rep(paste(gears[pp],"surface_sar",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-    datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-    datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-    datgear$avgsar <- rowMeans(datgear[,nam])
+    for (pp in 1:length(gears)){
+      datgear <- datT3
+      
+      nam <- paste(rep(paste(gears[pp],"surface_sar",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+      datgear$avgsar <- rowMeans(datgear[,nam])
+      datgear$sweptarea <- datgear[,"avgsar"]*datgear$area_sqkm
+      A3table[1,pp] <- sum(datgear$sweptarea,na.rm=T)/1000
+      
+      nam <- paste(rep(paste(gears[pp],"total_weight",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+      datgear$avgweight <- rowMeans(datgear[,nam])
+      A3table[2,pp] <- sum(datgear$avgweight)/1000000
+      
+      nam <- paste(rep(paste(gears[pp],"total_value",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+      datgear$avgvalue <- rowMeans(datgear[,nam])
+      A3table[3,pp] <- sum(datgear$avgvalue)/1000000
+      
+      # nam <- paste(rep(paste(gears[pp],"GVA",sep="_"),length(GVAPeriod)),GVAPeriod,sep="_")
+      # datgear <- cbind(datgear, GVAMet[match(datgear$csquares,GVAMet$csquares), c(nam)])
+      # datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+      # datgear$avgGVA <- rowMeans(datgear[,nam])
+      # A3table[4,pp] <- sum(datgear$avgGVA)/1000000
+      
+      A3table[4,pp] <- (sum(datgear$avgweight)/1000000) / (sum(datgear$sweptarea,na.rm=T)/1000)
+      A3table[5,pp] <- (sum(datgear$avgvalue)/1000000) / (sum(datgear$sweptarea,na.rm=T)/1000)
+      #A3table[7,pp] <- (sum(datgear$avgGVA)/1000000) / (sum(datgear$sweptarea,na.rm=T)/1000)
+    }
     
-    datgear$sweptarea <- datgear[,"avgsar"]*datgear$area_sqkm
-    A3table[1,pp] <- sum(datgear$sweptarea,na.rm=T)/1000
+    colnames(A3table) <- gears
+    rownames(A3table) <- c("Area swept (1000 km2)","Landings (1000 tonnes)","Value (Million euro)",
+                           "Landings / Area swept",
+                           "Value / Area swept")
+    # rownames(A3table) <- c("Area swept (1000 km2)","Landings (1000 tonnes)","Value (Million euro)",
+    #                        "Gross value added (Million euro)","Landings / Area swept",
+    #                        "Value / Area swept","Gross value added / Area swept")
     
-    nam <- paste(rep(paste(gears[pp],"total_weight",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-    datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-    datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-    datgear$avgweight <- rowMeans(datgear[,nam])
-    A3table[2,pp] <- sum(datgear$avgweight)/1000000
-    
-    nam <- paste(rep(paste(gears[pp],"total_value",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-    datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-    datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-    datgear$avgvalue <- rowMeans(datgear[,nam])
-    A3table[3,pp] <- sum(datgear$avgvalue)/1000000
-    
-    A3table[4,pp] <- (sum(datgear$avgweight)/1000000) / (sum(datgear$sweptarea,na.rm=T)/1000)
-    A3table[5,pp] <- (sum(datgear$avgvalue)/1000000) / (sum(datgear$sweptarea,na.rm=T)/1000)
-  }
-  
-  colnames(A3table) <- gears
-  rownames(A3table) <- c("Area swept (1000 km2)","Landings (1000 tonnes)","Value (10^6 euro)",
-                         "Landings (1000 tonnes)/Area swept (1000 km2)","Value (10^6 euro)/Area swept (1000 km2)")
-  
-  save(A3table, file="TableA3.RData")
+    save(A3table, file="TableA3.RData")
+  } # end if gears>0 loop
  
   
 ### impact estimations
@@ -514,17 +561,18 @@
       A8dat <-  subset(A8dat,A8dat$Depth >= -200)
     }
   
-    gears <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
-    
-    nam <- paste("state",rep(gears[1],length(Period)),Period,sep="_")
-    A8dat <- cbind(A8dat, State_reg[match(A8dat$csquares,State_reg$Fisheries.csquares), c(nam)])
-    A8dat[,c(nam)][is.na(A8dat[,c(nam)])] <- 1
-    A8dat[,c(nam)] <- A8dat[,c(nam)]*A8dat$area_km2 
-    Avgear <- aggregate( A8dat[, c(nam, "area_km2")], by= list(A8dat$MSFD), FUN=function(x){sum(x)})
-    Avgear[,nam] <- Avgear[,nam]/Avgear[,"area_km2"]
-    colnames(Avgear)[1] <- 'MSFD'
-    Avgear <- Avgear[,-(ncol(Avgear))]
-    AvMSFD_metier <- as.data.frame(Avgear)
+    gears2 <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
+    gears <- gears2[which(gears2 %in% subset(ActiveMetiers, Activity == "Active")$gears)]
+    if(length(gears)>0){
+      nam <- paste("state",rep(gears[1],length(Period)),Period,sep="_")
+      A8dat <- cbind(A8dat, State_reg[match(A8dat$csquares,State_reg$Fisheries.csquares), c(nam)])
+      A8dat[,c(nam)][is.na(A8dat[,c(nam)])] <- 1
+      A8dat[,c(nam)] <- A8dat[,c(nam)]*A8dat$area_km2 
+      Avgear <- aggregate( A8dat[, c(nam, "area_km2")], by= list(A8dat$MSFD), FUN=function(x){sum(x)})
+      Avgear[,nam] <- Avgear[,nam]/Avgear[,"area_km2"]
+      colnames(Avgear)[1] <- 'MSFD'
+      Avgear <- Avgear[,-(ncol(Avgear))]
+      AvMSFD_metier <- as.data.frame(Avgear)
       
       for (pp in 2:length(gears)){
         nam <- paste("state",rep(gears[pp],length(Period)),Period,sep="_")
@@ -537,43 +585,33 @@
         Avgear <- Avgear[,-(ncol(Avgear))]
         AvMSFD_metier <- cbind(AvMSFD_metier, Avgear[match(AvMSFD_metier$MSFD,Avgear$MSFD), c(2:(length(Period)+1))])
       }
-  
-    A8_A9fig <- subset(AvMSFD_metier, AvMSFD_metier$MSFD %in%  c(mostcommonMSFD))
-    save(A8_A9fig, file="FigureA8_A9.RData")
-  
-  # redo analysis for inverse longevity impact
-    A8dat <- Region@data
-    
-    colnames(A8dat)[which(colnames(A8dat)=="MSFD")] <- "MSFD_midpoint" 
-    
-    # account for area of MSDS habitat within csquares and make sure total area is < grid cell size 
-    tnew <- aggregate(msfd_csq$area_km2, by=list(msfd_csq$csquares),FUN = sum)
-    colnames(tnew) <- c("csquares","areanew")
-    msfd_csq_new <- cbind(msfd_csq, tnew[match(msfd_csq$csquares,tnew$csquares), c("areanew")])
-    colnames(msfd_csq_new)[ncol(msfd_csq_new)] <- "tot_area"
-    A8dat <- merge(A8dat,msfd_csq_new,by = "csquares", all.x =T)
-    A8dat$MSFD <- as.character(A8dat$MSFD)
-    A8dat$MSFD[A8dat$MSFD=="Na"]= "Unknown"
-    
-    # remove areas deeper than 200 meter for overview of Greater North Sea
-    if (Assregion == "Greater North Sea"){
-      A8dat <-  subset(A8dat,A8dat$Depth >= -200)
-    }
-    
-    gears <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
-    
-    nam <- paste("state",rep(gears[1],length(Period)),Period,sep="_")
-    A8dat <- cbind(A8dat, State_reg_IL[match(A8dat$csquares,State_reg_IL$Fisheries.csquares), c(nam)])
-    A8dat[,c(nam)][is.na(A8dat[,c(nam)])] <- 1
-    A8dat[,c(nam)] <- A8dat[,c(nam)]*A8dat$area_km2 
-    Avgear <- aggregate( A8dat[, c(nam, "area_km2")], by= list(A8dat$MSFD), FUN=function(x){sum(x)})
-    Avgear[,nam] <- Avgear[,nam]/Avgear[,"area_km2"]
-    colnames(Avgear)[1] <- 'MSFD'
-    Avgear <- Avgear[,-(ncol(Avgear))]
-    AvMSFD_metier <- as.data.frame(Avgear)
-    
-    for (pp in 2:length(gears)){
-      nam <- paste("state",rep(gears[pp],length(Period)),Period,sep="_")
+      
+      A8_A9fig <- subset(AvMSFD_metier, AvMSFD_metier$MSFD %in%  c(mostcommonMSFD))
+      save(A8_A9fig, file="FigureA8_A9.RData")
+      
+      # redo analysis for inverse longevity impact
+      A8dat <- Region@data
+      
+      colnames(A8dat)[which(colnames(A8dat)=="MSFD")] <- "MSFD_midpoint" 
+      
+      # account for area of MSDS habitat within csquares and make sure total area is < grid cell size 
+      tnew <- aggregate(msfd_csq$area_km2, by=list(msfd_csq$csquares),FUN = sum)
+      colnames(tnew) <- c("csquares","areanew")
+      msfd_csq_new <- cbind(msfd_csq, tnew[match(msfd_csq$csquares,tnew$csquares), c("areanew")])
+      colnames(msfd_csq_new)[ncol(msfd_csq_new)] <- "tot_area"
+      A8dat <- merge(A8dat,msfd_csq_new,by = "csquares", all.x =T)
+      A8dat$MSFD <- as.character(A8dat$MSFD)
+      A8dat$MSFD[A8dat$MSFD=="Na"]= "Unknown"
+      
+      # remove areas deeper than 200 meter for overview of Greater North Sea
+      if (Assregion == "Greater North Sea"){
+        A8dat <-  subset(A8dat,A8dat$Depth >= -200)
+      }
+      
+      gears2 <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
+      gears <- gears2[which(gears2 %in% subset(ActiveMetiers, Activity == "Active")$gears)]
+      
+      nam <- paste("state",rep(gears[1],length(Period)),Period,sep="_")
       A8dat <- cbind(A8dat, State_reg_IL[match(A8dat$csquares,State_reg_IL$Fisheries.csquares), c(nam)])
       A8dat[,c(nam)][is.na(A8dat[,c(nam)])] <- 1
       A8dat[,c(nam)] <- A8dat[,c(nam)]*A8dat$area_km2 
@@ -581,11 +619,25 @@
       Avgear[,nam] <- Avgear[,nam]/Avgear[,"area_km2"]
       colnames(Avgear)[1] <- 'MSFD'
       Avgear <- Avgear[,-(ncol(Avgear))]
-      AvMSFD_metier <- cbind(AvMSFD_metier, Avgear[match(AvMSFD_metier$MSFD,Avgear$MSFD), c(2:(length(Period)+1))])
-    }
+      AvMSFD_metier <- as.data.frame(Avgear)
+      
+      for (pp in 2:length(gears)){
+        nam <- paste("state",rep(gears[pp],length(Period)),Period,sep="_")
+        A8dat <- cbind(A8dat, State_reg_IL[match(A8dat$csquares,State_reg_IL$Fisheries.csquares), c(nam)])
+        A8dat[,c(nam)][is.na(A8dat[,c(nam)])] <- 1
+        A8dat[,c(nam)] <- A8dat[,c(nam)]*A8dat$area_km2 
+        Avgear <- aggregate( A8dat[, c(nam, "area_km2")], by= list(A8dat$MSFD), FUN=function(x){sum(x)})
+        Avgear[,nam] <- Avgear[,nam]/Avgear[,"area_km2"]
+        colnames(Avgear)[1] <- 'MSFD'
+        Avgear <- Avgear[,-(ncol(Avgear))]
+        AvMSFD_metier <- cbind(AvMSFD_metier, Avgear[match(AvMSFD_metier$MSFD,Avgear$MSFD), c(2:(length(Period)+1))])
+      }
+      
+      A8_A9fig <- subset(AvMSFD_metier, AvMSFD_metier$MSFD %in%  c(mostcommonMSFD))
+      save(A8_A9fig, file="FigureA8_A9_IL.RData")
+      
+    }# end if gears>0 loop
     
-    A8_A9fig <- subset(AvMSFD_metier, AvMSFD_metier$MSFD %in%  c(mostcommonMSFD))
-    save(A8_A9fig, file="FigureA8_A9_IL.RData")
     
   #####
   # Table A.4
@@ -597,53 +649,72 @@
       datT4 <-  subset(datT4,datT4$Depth >= -200)
     }
     
-    gears <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
+    gears2 <- c("DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL")
+    gears <- gears2[which(gears2 %in% subset(ActiveMetiers, Activity == "Active")$gears)]
+    if(length(gears)>0){
+      A4table <- as.data.frame(matrix(data=NA, ncol=length(gears), nrow = 4))
+      
+      for (pp in 1:length(gears)){
+        datgear <- datT4
+        
+        nam <- paste(rep(paste(gears[pp],"surface_sar",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+        datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+        datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+        datgear$avgsar <- rowMeans(datgear[,nam])
+        
+        nam <- paste(rep(paste(gears[pp],"total_weight",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+        datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+        datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+        datgear$avgweight <- rowMeans(datgear[,nam])
+        
+        nam <- paste(rep(paste(gears[pp],"total_value",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+        datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
+        datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+        datgear$avgvalue <- rowMeans(datgear[,nam])
+        
+        # nam <- paste(rep(paste(gears[pp],"GVA",sep="_"),length(GVAPeriod)),GVAPeriod,sep="_")
+        # datgear <- cbind(datgear, GVAMet[match(datgear$csquares,GVAMet$csquares), c(nam)])
+        # datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
+        # datgear$avgGVA <- rowMeans(datgear[,nam])
+        
+        nam <- paste(rep(paste("state",gears[pp],sep="_"),length(AssPeriod)),AssPeriod,sep="_")
+        datgear_PD <- cbind(datgear, State_reg[match(datgear$csquares,State_reg$Fisheries.csquares), c(nam)])
+        datgear_PD[,c(nam)][is.na(datgear_PD[,c(nam)])] <- 0
+        datgear_PD$avgimpact <- 1- rowMeans(datgear_PD[,nam])
+        datgear_PD <- subset(datgear_PD,datgear_PD$avgsar >0)
+        A4table[1,pp] <- (sum(datgear_PD$avgweight)/1000000) / sum(datgear_PD$avgimpact)
+        A4table[2,pp] <- (sum(datgear_PD$avgvalue)/1000000) / sum(datgear_PD$avgimpact)
+        #A4table[3,pp] <- (sum(datgear_PD$avgGVA)/1000000)  / sum(datgear_PD$avgimpact)
+        
+        datgear_IL <- cbind(datgear, State_reg_IL[match(datgear$csquares,State_reg_IL$Fisheries.csquares), c(nam)])
+        datgear_IL[,c(nam)][is.na(datgear_IL[,c(nam)])] <- 0
+        datgear_IL$avgimpact <- 1- rowMeans(datgear_IL[,nam])
+        datgear_IL <- subset(datgear_IL,datgear_IL$avgsar >0)
+        A4table[3,pp] <- (sum(datgear_IL$avgweight)/1000000) / sum(datgear_IL$avgimpact)
+        A4table[4,pp] <- (sum(datgear_IL$avgvalue)/1000000) / sum(datgear_IL$avgimpact)
+        #A4table[6,pp] <- (sum(datgear_IL$avgGVA)/1000000) / sum(datgear_IL$avgimpact)
+      }
+      
+      colnames(A4table) <- gears
+      rownames(A4table) <- c("Landings (1000 tonnes)/PD impact","Value (million euro)/PD impact",
+                             "Landings (1000 tonnes)/PD-sens impact",
+                             "Value (million euro)/PD-sens impact")
+      # rownames(A4table) <- c("Landings (1000 tonnes)/PD impact","Value (million euro)/PD impact",
+      #                        "GVA (million euro)/PD impact",
+      #                        "Landings (1000 tonnes)/PD-sens impact",
+      #                        "Value (million euro)/PD-sens impact",
+      #                        "GVA (million euro)/PD-sens impact")
+      save(A4table, file="TableA4.RData")
+      
+    } # end if gears>0 loop
     
-    A4table <- as.data.frame(matrix(data=NA, ncol=length(gears), nrow = 4))
-    
-    for (pp in 1:length(gears)){
-      datgear <- datT4
-      
-      nam <- paste(rep(paste(gears[pp],"surface_sar",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-      datgear$avgsar <- rowMeans(datgear[,nam])
-      
-      nam <- paste(rep(paste(gears[pp],"total_weight",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-      datgear$avgweight <- rowMeans(datgear[,nam])
-      
-      nam <- paste(rep(paste(gears[pp],"total_value",sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-      datgear <- cbind(datgear, FisheriesMet[match(datgear$csquares,FisheriesMet$csquares), c(nam)])
-      datgear[,c(nam)][is.na(datgear[,c(nam)])] <- 0
-      datgear$avgvalue <- rowMeans(datgear[,nam])
-      
-      nam <- paste(rep(paste("state",gears[pp],sep="_"),length(AssPeriod)),AssPeriod,sep="_")
-      datgear_PD <- cbind(datgear, State_reg[match(datgear$csquares,State_reg$Fisheries.csquares), c(nam)])
-      datgear_PD[,c(nam)][is.na(datgear_PD[,c(nam)])] <- 0
-      datgear_PD$avgimpact <- 1- rowMeans(datgear_PD[,nam])
-      datgear_PD <- subset(datgear_PD,datgear_PD$avgsar >0)
-      A4table[1,pp] <- (sum(datgear_PD$avgweight)/1000000) / sum(datgear_PD$avgimpact)
-      A4table[2,pp] <- (sum(datgear_PD$avgvalue)/1000000) / sum(datgear_PD$avgimpact)
-      
-      datgear_IL <- cbind(datgear, State_reg_IL[match(datgear$csquares,State_reg_IL$Fisheries.csquares), c(nam)])
-      datgear_IL[,c(nam)][is.na(datgear_IL[,c(nam)])] <- 0
-      datgear_IL$avgimpact <- 1- rowMeans(datgear_IL[,nam])
-      datgear_IL <- subset(datgear_IL,datgear_IL$avgsar >0)
-      A4table[3,pp] <- (sum(datgear_IL$avgweight)/1000000) / sum(datgear_IL$avgimpact)
-      A4table[4,pp] <- (sum(datgear_IL$avgvalue)/1000000) / sum(datgear_IL$avgimpact)
-    }
-    
-    colnames(A4table) <- gears
-    rownames(A4table) <- c("Landings (1000 tonnes)/PD impact","Value (10^6 euro)/PD impact",
-                           "Landings (1000 tonnes)/L1 impact","Value (10^6 euro)/L1 impact")
-    
-    save(A4table, file="TableA4.RData")
     
   }
   
-rm(list= ls()[!(ls() %in% c('pathdir','pathdir_nogit','Assregion_index','Assunit_index','EcoReg_index',
-                            'Period','AssPeriod',"EcoReg",'Fisheries','FisheriesMet','p','regions_with_impact',
-                            'Region','State_reg','State_reg_IL',"Assunit","Assregion","msfd_csq","regions_with_corefishing"))])
-
+  rm(list= ls()[!(ls() %in% c('pathdir','pathdir_nogit','Assregion_index','Assunit_index',
+                              'EcoReg_index','GVA','GVAMet','Period','AssPeriod',"GVAPeriod",
+                              "EcoReg",'Fisheries','FisheriesMet','p','regions_with_impact',
+                              'Region','State_reg','State_reg_IL',"Assunit","Assregion",
+                              "msfd_csq","regions_with_corefishing", "State_GMP10", "State_GMP20",
+                              "State_GMP5", "State_sens_GMP10", "State_sens_GMP20", "State_sens_GMP5",
+                              "ActiveMetiers"))])
