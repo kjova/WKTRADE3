@@ -27,9 +27,9 @@ rm(list = ls())
                        rep(Sregions[3],2),rep(Sregions[4],4))  # get the (sub-)region for the reporting region
   Assunit_index   <- c(rep("(sub-)Region",4),rep("Division",17)) # is reporting region a "(sub-)Region" or "Division"?
   regions_with_impact <- c(1:5,7:21) # no sensitivity data for the Norwegian Trench (6)
-  regions_with_corefishing <- c(1:9,12:18) # subdivisions: "Gulf of Finland"(11), "Gulf of Riga"(12), "North-Iberian Atlantic"(19), "South-Iberian Atlantic"(20), and "Gulf of Cadiz"(21) have no fishing values reported.
+  regions_with_corefishing <- c(1:10,13:18) # subdivisions: "Gulf of Finland"(11), "Gulf of Riga"(12), "North-Iberian Atlantic"(19), "South-Iberian Atlantic"(20), and "Gulf of Cadiz"(21) have no fishing values reported.
 
-  for (p in 1:21){
+  for (p in 10:21){
    Assregion <- Assregion_index[p]
    EcoReg    <- EcoReg_index[p]
    Assunit <- Assunit_index[p]
