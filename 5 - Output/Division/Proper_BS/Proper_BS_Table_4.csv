@@ -1,5 +1,6 @@
-"","DRB_MOL","OT_CRU","OT_DMF","OT_MIX","OT_SPF","SDN_DMF","SSC_DMF","TBB_CRU","TBB_DMF","TBB_MOL"
-"Landings (1000 tonnes)/PD impact",NA,1.223,0.319,NA,4.73,NA,NA,NA,NA,NA
-"Value (10^6 euro)/PD impact",NA,0.363,0.303,NA,1.043,NA,NA,NA,NA,NA
-"Landings (1000 tonnes)/L1 impact",NA,1.806,0.017,NA,0.082,NA,NA,NA,NA,NA
-"Value (10^6 euro)/L1 impact",NA,0.536,0.016,NA,0.018,NA,NA,NA,NA,NA
+"","OT_DMF","OT_SPF"
+"Area swept (1000 km2)","12.36","0.67"
+"Landings (1000 tonnes)","3.83","2.98"
+"Value (Million euro)","3.79","0.56"
+"Landings / Area swept","0.31","4.42"
+"Value / Area swept","0.31","0.84"
