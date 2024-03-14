@@ -37,8 +37,11 @@ pathdir <- "D:/TRADE4_Karin/WKTRADE3"
 # VME2 <- VME[, c("SiteCode", "vulnerable_to_BT", "geometry")]
 # MPAVME <- rbind(MPA2, VME2)
 # rm(MPA, MPA2, VME, VME2)
-# save(MPAVME, file=paste0(pathdir, "/6 - Other/MPAVME.Rdata"))
-load(file=paste0(pathdir, "/6 - Other/MPAVME.Rdata"))
+# #save(MPAVME, file=paste0(pathdir, "/6 - Other/MPAVME.Rdata"))
+# save(MPAVME, file="C:/Users/Karin.Reijden/OneDrive - International Council for the Exploration of the Sea (ICES)/Documents/_GIS/Seawise/MPAVME.Rdata")
+load(file="C:/Users/Karin.Reijden/OneDrive - International Council for the Exploration of the Sea (ICES)/Documents/_GIS/Seawise/MPAVME.Rdata")
+
+
 #--------------------------------------------------
 ## Merge all regional grids, overlap with MPAVME, save as grid_over. 
 #--------------------------------------------------
